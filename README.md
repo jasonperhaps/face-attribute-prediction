@@ -1,6 +1,5 @@
 # face-attribute-prediction
-Face Attribute Prediction on [CelebA](http://mmlab.ie.cuhk.edu.hk/projects/CelebA.html) benchmark with PyTorch Implemantation, heavily borrowed from [my MobileNetV2 implementation](https://github.com/d-li14/mobilenetv2.pytorch).
-
+Face Attribute Prediction on [CelebA](http://mmlab.ie.cuhk.edu.hk/projects/CelebA.html) benchmark with PyTorch Implemantation.
 ## Dependencies
 
 * Anaconda3 (Python 3.6+, with Numpy etc.)
@@ -9,11 +8,14 @@ Face Attribute Prediction on [CelebA](http://mmlab.ie.cuhk.edu.hk/projects/Celeb
 
 ## Dataset
 
-[CelebA](http://mmlab.ie.cuhk.edu.hk/projects/CelebA.html) dataset is a large-scale face dataset with attribute-based annotations. Cropped and aligned face regions are utilized as the training source. For the pre-processed data and specific split, please feel free to contact me: <d-li14@mails.tsinghua.edu.cn>
+[CelebA](http://mmlab.ie.cuhk.edu.hk/projects/CelebA.html) dataset is a large-scale face dataset with attribute-based annotations. Cropped and aligned face regions are utilized as the training source. 
+
 
 ## Features
-
-* Both ResNet and MobileNet as the backbone for scalability
-* Each of the 40 annotated attributes predicted with multi-head networks
-* Achieve ~92% average accuracy, comparative to state-of-the-art
-* Fast convergence (5~10 epochs) through finetuning the ImageNet pre-trained models
+* Good capacity as well as generalization ability.
+* Achieve 92%+ average accuracy on CelebA Val.
+* Both ResNet and EfficientNet as the backbone for scalability
+* fast convergence: 91% acc on CelebA Val after 1 epoch.
+* To-do: Focal Loss
+* To-Do: Class balanced sampler
+* To-do: BCE loss for attributes recognition.
