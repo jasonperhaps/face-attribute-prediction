@@ -1,9 +1,5 @@
-# A simple torch style logger
-# (C) Wei YANG 2017
 from __future__ import absolute_import
-import matplotlib.pyplot as plt
-import os
-import sys
+import matplotlib.pyplot as pl
 import numpy as np
 
 __all__ = ['Logger', 'LoggerMonitor', 'savefig']
@@ -11,7 +7,7 @@ __all__ = ['Logger', 'LoggerMonitor', 'savefig']
 def savefig(fname, dpi=None):
     dpi = 150 if dpi == None else dpi
     plt.savefig(fname, dpi=dpi)
-    
+
 def plot_overlap(logger, names=None):
     names = logger.names if names == None else names
     numbers = logger.numbers

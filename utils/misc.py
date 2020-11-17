@@ -1,21 +1,29 @@
-'''Some helper functions for PyTorch, including:
-    - get_mean_and_std: calculate the mean and std value of dataset.
-    - msr_init: net parameter initialization.
-    - progress_bar: progress bar mimic xlua.progress.
-'''
 import errno
 import os
-import sys
-import time
-import math
-
+import torch
 import torch.nn as nn
 import torch.nn.init as init
-from torch.autograd import Variable
+import torch.distributed as dist
+import torch.multiprocessing as mp
 
-__all__ = ['get_mean_and_std', 'init_params', 'mkdir_p', 'AverageMeter']
+__all__ = ['get_mean_and_std', 'init_params', 'mkdir_p', 'AverageMeter', 'init_dist_pytorch']
 
+def init_dist_pytorch(tcp_port, local_rank, backend='nccl'):
+    if mp.get_start_method(allow_none=True) is None:
+        mp.set_start_method('spawn')
 
+    num_gpus = torch.cuda.device_count()
+    torch.cuda.set_device(local_rank % num_gpus)
+    dist.init_process_group(
+        backend=backend,
+        init_method='tcp://127.0.0.1:%d' % tcp_port,
+        rank=local_rank,
+        world_size=num_gpus
+    )
+    rank = dist.get_rank()
+    return num_gpus, rank
+
+# 得到数据集的均值和方差
 def get_mean_and_std(dataset):
     '''Compute the mean and std value of dataset.'''
     dataloader = trainloader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=True, num_workers=2)
@@ -45,7 +53,7 @@ def init_params(net):
             init.normal(m.weight, std=1e-3)
             if m.bias:
                 init.constant(m.bias, 0)
-
+            
 def mkdir_p(path):
     '''make dir if not exist'''
     try:

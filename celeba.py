@@ -1,17 +1,15 @@
 import torch
 import torch.utils.data as data
+import numpy as np
 
 from PIL import Image
 import os
 import os.path
 
-
 def pil_loader(path):
-    # open path as file to avoid ResourceWarning (https://github.com/python-pillow/Pillow/issues/835)
     with open(path, 'rb') as f:
         img = Image.open(f)
         return img.convert('RGB')
-
 
 def accimage_loader(path):
     import accimage
@@ -29,36 +27,42 @@ def default_loader(path):
     else:
         return pil_loader(path)
 
-
 class CelebA(data.Dataset):
-    def __init__(self, root, ann_file, transform=None, target_transform=None, loader=default_loader):
-        images = []
-        targets = []
-        
-        for line in open(os.path.join(root, ann_file), 'r'):
-            sample = line.split()
-            if len(sample) != 41:
-                raise(RuntimeError("# Annotated face attributes of CelebA dataset should not be different from 40"))
-            images.append(sample[0])
-            targets.append([int(i) for i in sample[1:]])
-        self.images = [os.path.join(root, 'img_align_celeba_png', img) for img in images]
-        self.targets = targets
-        self.transform = transform
-        self.target_transform = target_transform
-        self.loader = loader
-		
-    def __getitem__(self, index):
-        path = self.images[index]
-        sample = self.loader(path)
-        target = self.targets[index]
-        target = torch.LongTensor(target)
-        if self.transform is not None:
-            sample = self.transform(sample)
-        if self.target_transform is not None:
-            target = self.target_transform(target)
-
-        return sample, target
+    def __init__(self, img_dir=None, split='train', transform=None, label_transform=None, loader=default_loader):
+        super().__init__()
+        input_dict = None
+        import pickle
+        if split == 'train':
+            with open('./split/train.pickle', 'rb') as handle:
+                input_dict = pickle.load(handle)
+        elif split == 'val':
+            with open('./split/val.pickle', 'rb') as handle:
+                input_dict = pickle.load(handle)
+        else:
+            with open('./split/test.pickle', 'rb') as handle:
+                input_dict = pickle.load(handle)
+            
+        self.imgs = [os.path.join(img_dir,file) for file in input_dict['imgs']]
+        self.labels = input_dict['labels'] 
+        self.transform = transform 
+        self.label_transform = label_transform
+        self.loader = loader 
 
     def __len__(self):
-        return len(self.images)
+        return len(self.imgs)
+    def __getitem__(self,index):
+        img_path = self.imgs[index]
+        label = torch.from_numpy(np.array(self.labels[index],dtype=np.int64))
+        img = self.loader(img_path)
+        if self.transform is not None:
+            try:
+                img = self.transform(img)
+            except:
+                print('Cannot transform image: {}'.format(img_path))
+        if self.label_transform is not None:
+            try:
+                label = self.label_transform(label)
+            except:
+                pass
+        return img,label
 

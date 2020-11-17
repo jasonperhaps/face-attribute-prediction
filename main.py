@@ -23,19 +23,18 @@ import torchvision.datasets as datasets
 import models
 from math import cos, pi
 
-from celeba import CelebA
-from utils import Bar, Logger, AverageMeter, accuracy, mkdir_p, savefig
+from celebA import CelebA
+from utils import Bar, Logger, AverageMeter, accuracy, mkdir_p, savefig, init_dist_pytorch
 from tensorboardX import SummaryWriter
 
 model_names = sorted(name for name in models.__dict__
     if name.islower() and not name.startswith("__")
     and callable(models.__dict__[name]))
 
-
 # Parse arguments
 parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
 parser.add_argument('-d', '--data', default='path to dataset', type=str)
-parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet18',
+parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet50',
                     choices=model_names,
                     help='model architecture: ' +
                         ' | '.join(model_names) +
@@ -84,14 +83,16 @@ parser.add_argument('--pretrained', dest='pretrained', action='store_true',
                     help='use pre-trained model')
 parser.add_argument('--world-size', default=1, type=int,
                     help='number of distributed processes')
-parser.add_argument('--dist-url', default='tcp://224.66.41.62:23456', type=str,
-                    help='url used to set up distributed training')
-parser.add_argument('--dist-backend', default='gloo', type=str,
+parser.add_argument('--local_rank', default=0, type=int,
+                    help='local rank for distributed training')
+#parser.add_argument('--dist-url', default='tcp://127.0.0.1:23456', type=str,
+#                    help='url used to set up distributed training')
+parser.add_argument('--tcp_port', type=int, default=18888, help='tcp port for distrbuted training')
+parser.add_argument('--dist-backend', default='nccl', type=str,
                     help='distributed backend')
 # Device options
 parser.add_argument('--gpu-id', default='0', type=str,
                     help='id(s) for CUDA_VISIBLE_DEVICES')
-
 
 best_prec1 = 0
 
@@ -102,9 +103,14 @@ def main():
 
     args.distributed = args.world_size > 1
 
-    if args.distributed:
-        dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
-                                world_size=args.world_size)
+    total_gpus, local_rank = init_dist_pytorch(args.tcp_port, args.local_rank, backend=args.dist_backend)
+    assert args.train_batch % total_gpus == 0, 'Batch size should match the number of gpus'
+    args.train_batch = args.train_batch // total_gpus
+
+#    if args.distributed:
+#        dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url, rank=args.rank,
+#                                world_size=args.world_size)
+
     # Use CUDA
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu_id
     use_cuda = torch.cuda.is_available()
@@ -116,6 +122,7 @@ def main():
     torch.manual_seed(args.manual_seed)
     if use_cuda:
         torch.cuda.manual_seed_all(args.manual_seed)
+
 
     # create model
     if args.pretrained:
@@ -142,8 +149,8 @@ def main():
             model = torch.nn.DataParallel(model).cuda()
     else:
         model.cuda()
-        model = torch.nn.parallel.DistributedDataParallel(model)
-
+        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[local_rank % torch.cuda.device_count()])
+    
     # define loss function (criterion) and optimizer
     criterion = nn.CrossEntropyLoss().cuda()
 
@@ -155,6 +162,7 @@ def main():
     title = 'CelebA-' + args.arch
     if not os.path.isdir(args.checkpoint):
         mkdir_p(args.checkpoint)
+
 
     if args.resume:
         if os.path.isfile(args.resume):
@@ -180,35 +188,37 @@ def main():
     # Data loading code
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
+#    normalize = transforms.Normalize(mean=[0.50612009, 0.42543493, 0.38282761],
+#                                     std=[0.26589054, 0.24521921, 0.24127836])
 
     train_dataset = CelebA(
         args.data,
-        'train_40_att_list.txt',
+        'train',
         transforms.Compose([
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             normalize,
         ]))
-
+    
     if args.distributed:
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
     else:
         train_sampler = None
-
+    
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=args.train_batch, shuffle=(train_sampler is None),
         num_workers=args.workers, pin_memory=True, sampler=train_sampler)
 
     val_loader = torch.utils.data.DataLoader(
-        CelebA(args.data, 'val_40_att_list.txt', transforms.Compose([
+        CelebA(args.data, 'val', transforms.Compose([
             transforms.ToTensor(),
             normalize,
         ])),
         batch_size=args.test_batch, shuffle=False,
         num_workers=args.workers, pin_memory=True)
-
+    
     test_loader = torch.utils.data.DataLoader(
-        CelebA(args.data, 'test_40_att_list.txt', transforms.Compose([
+        CelebA(args.data, 'test', transforms.Compose([
             transforms.ToTensor(),
             normalize,
         ])),
@@ -217,44 +227,43 @@ def main():
 
     if args.evaluate:
         validate(test_loader, model, criterion)
-        return
 
     # visualization
     writer = SummaryWriter(os.path.join(args.checkpoint, 'logs'))
 
     for epoch in range(args.start_epoch, args.epochs):
-        if args.distributed:
-            train_sampler.set_epoch(epoch)
-        lr = adjust_learning_rate(optimizer, epoch)
+       if args.distributed:
+           train_sampler.set_epoch(epoch)
+       lr = adjust_learning_rate(optimizer, epoch)
 
-        print('\nEpoch: [%d | %d] LR: %f' % (epoch + 1, args.epochs, lr))
+       print('\nEpoch: [%d | %d] LR: %f' % (epoch + 1, args.epochs, lr))
 
-        # train for one epoch
-        train_loss, train_acc = train(train_loader, model, criterion, optimizer, epoch)
+       # train for one epoch
+       train_loss, train_acc = train(train_loader, model, criterion, optimizer, epoch)
 
-        # evaluate on validation set
-        val_loss, prec1 = validate(val_loader, model, criterion)
+       # evaluate on validation set
+       val_loss, prec1 = validate(val_loader, model, criterion)
 
-        # append logger file
-        logger.append([lr, train_loss, val_loss, train_acc, prec1])
+       # append logger file
+       logger.append([lr, train_loss, val_loss, train_acc, prec1])
 
-        # tensorboardX
-        writer.add_scalar('learning rate', lr, epoch + 1)
-        writer.add_scalars('loss', {'train loss': train_loss, 'validation loss': val_loss}, epoch + 1)
-        writer.add_scalars('accuracy', {'train accuracy': train_acc, 'validation accuracy': prec1}, epoch + 1)
-        #for name, param in model.named_parameters():
-        #    writer.add_histogram(name, param.clone().cpu().data.numpy(), epoch + 1)
+       # tensorboardX
+       writer.add_scalar('learning rate', lr, epoch + 1)
+       writer.add_scalars('loss', {'train loss': train_loss, 'validation loss': val_loss}, epoch + 1)
+       writer.add_scalars('accuracy', {'train accuracy': train_acc, 'validation accuracy': prec1}, epoch + 1)
+       #for name, param in model.named_parameters():
+       #    writer.add_histogram(name, param.clone().cpu().data.numpy(), epoch + 1)
 
 
-        is_best = prec1 > best_prec1
-        best_prec1 = max(prec1, best_prec1)
-        save_checkpoint({
-            'epoch': epoch + 1,
-            'arch': args.arch,
-            'state_dict': model.state_dict(),
-            'best_prec1': best_prec1,
-            'optimizer' : optimizer.state_dict(),
-        }, is_best, checkpoint=args.checkpoint)
+       is_best = prec1 > best_prec1
+       best_prec1 = max(prec1, best_prec1)
+       save_checkpoint({
+           'epoch': epoch + 1,
+           'arch': args.arch,
+           'state_dict': model.state_dict(),
+           'best_prec1': best_prec1,
+           'optimizer' : optimizer.state_dict(),
+       }, is_best, checkpoint=args.checkpoint)
 
     logger.close()
     logger.plot()
@@ -324,7 +333,6 @@ def train(train_loader, model, criterion, optimizer, epoch):
     bar.finish()
     return (loss_avg, prec1_avg)
 
-
 def validate(val_loader, model, criterion):
     bar = Bar('Processing', max=len(val_loader))
 
@@ -379,13 +387,11 @@ def validate(val_loader, model, criterion):
     bar.finish()
     return (loss_avg, prec1_avg)
 
-
 def save_checkpoint(state, is_best, checkpoint='checkpoint', filename='checkpoint.pth.tar'):
     filepath = os.path.join(checkpoint, filename)
     torch.save(state, filepath)
     if is_best:
         shutil.copyfile(filepath, os.path.join(checkpoint, 'model_best.pth.tar'))
-
 
 def adjust_learning_rate(optimizer, epoch):
     lr = optimizer.param_groups[0]['lr']
@@ -413,5 +419,14 @@ def adjust_learning_rate(optimizer, epoch):
     return lr
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
+
+
+
+
+
+
+
+
+        

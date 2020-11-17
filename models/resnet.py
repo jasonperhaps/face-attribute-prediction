@@ -1,29 +1,24 @@
 import torch.nn as nn
 import torch.utils.model_zoo as model_zoo
 
-
-__all__ = ['ResNet', 'resnet50']
-
+__all__ = ["ResNet", 'resnet50']
 
 model_urls = {
-    'resnet18': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
-    'resnet34': 'https://download.pytorch.org/models/resnet34-333f7ec4.pth',
-    'resnet50': 'https://download.pytorch.org/models/resnet50-19c8e357.pth',
-    'resnet101': 'https://download.pytorch.org/models/resnet101-5d3b4d8f.pth',
-    'resnet152': 'https://download.pytorch.org/models/resnet152-b121ed2d.pth',
+    'resnet18': 'file:///home/vipl/hmy/FAE/resnet/resnet18-5c106cde.pth',
+    'resnet34': 'file:///home/vipl/hmy/FAE/resnet/resnet34-333f7ec4.pth',
+    'resnet50': 'file:///home/vipl/hmy/FAE/resnet/resnet50-19c8e357.pth',
+    'resnet101': 'file:///home/vipl/hmy/FAE/resnet/resnet101-5d3b4d8f.pth',
+    'resnet152': 'file:///home/vipl/hmy/FAE/resnet/resnet152-b121ed2d.pth',
 }
-
 
 def conv3x3(in_planes, out_planes, stride=1):
     """3x3 convolution with padding"""
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
                      padding=1, bias=False)
 
-
 def conv1x1(in_planes, out_planes, stride=1):
     """1x1 convolution"""
     return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
-
 
 class BasicBlock(nn.Module):
     expansion = 1
@@ -55,7 +50,7 @@ class BasicBlock(nn.Module):
         out = self.relu(out)
 
         return out
-
+    
 
 class Bottleneck(nn.Module):
     expansion = 4
@@ -94,7 +89,6 @@ class Bottleneck(nn.Module):
 
         return out
 
-
 class fc_block(nn.Module):
     def __init__(self, inplanes, planes, drop_rate=0.15):
         super(fc_block, self).__init__()
@@ -112,7 +106,6 @@ class fc_block(nn.Module):
             x = self.dropout(x)
         x = self.relu(x)
         return x
-
 
 class ResNet(nn.Module):
 
@@ -201,7 +194,6 @@ def resnet50(pretrained=True, **kwargs):
         init_pretrained_weights(model, model_urls['resnet50'])
     return model
 
-
 def init_pretrained_weights(model, model_url):
     """
     Initialize model with pretrained weights.
@@ -213,4 +205,3 @@ def init_pretrained_weights(model, model_url):
     model_dict.update(pretrain_dict)
     model.load_state_dict(model_dict)
     print("Initialized model with pretrained weights from {}".format(model_url))
-

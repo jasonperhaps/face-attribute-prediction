@@ -4,9 +4,10 @@ import torch.nn as nn
 import torchvision
 import torchvision.transforms as transforms
 import numpy as np
-from .misc import *   
+from .misc import *
 
 __all__ = ['make_image', 'show_batch', 'show_mask', 'show_mask_single']
+
 
 # functions to show an image
 def make_image(img, mean=(0,0,0), std=(1,1,1)):
@@ -20,6 +21,7 @@ def gauss(x,a,b,c):
 
 def colorize(x):
     ''' Converts a one-channel grayscale image to a color heatmap image '''
+    cl = None
     if x.dim() == 2:
         torch.unsqueeze(x, 0, out=x)
     if x.dim() == 3:
@@ -34,6 +36,7 @@ def colorize(x):
         cl[:,1,:,:] = gauss(x,1,.5,.3)
         cl[:,2,:,:] = gauss(x,1,.2,.3)
     return cl
+
 
 def show_batch(images, Mean=(2, 2, 2), Std=(0.5,0.5,0.5)):
     images = make_image(torchvision.utils.make_grid(images), Mean, Std)
@@ -102,9 +105,9 @@ def show_mask(images, masklist, Mean=(2, 2, 2), Std=(0.5,0.5,0.5)):
         plt.axis('off')
 
 
-
 # x = torch.zeros(1, 3, 3)
 # out = colorize(x)
 # out_im = make_image(out)
 # plt.imshow(out_im)
-# plt.show()
+# plt.show(
+
