@@ -9,7 +9,7 @@ Face Attribute Prediction on [CelebA](http://mmlab.ie.cuhk.edu.hk/projects/Celeb
 
 ## Dataset
 
-[CelebA](http://mmlab.ie.cuhk.edu.hk/projects/CelebA.html) dataset is a large-scale face dataset with attribute-based annotations. Cropped and aligned face regions are utilized as the training source. For the pre-processed data and specific split, please feel free to contact me: <d-li14@mails.tsighua.edu.cn>
+[CelebA](http://mmlab.ie.cuhk.edu.hk/projects/CelebA.html) dataset is a large-scale face dataset with attribute-based annotations. Cropped and aligned face regions are utilized as the training source. For the pre-processed data and specific split, please feel free to contact me: <d-li14@mails.tsinghua.edu.cn>
 
 ## Features
 
